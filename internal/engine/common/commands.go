@@ -2,6 +2,7 @@ package common
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/Azure/InnovationEngine/internal/engine/environments"
 	"github.com/Azure/InnovationEngine/internal/logging"
@@ -111,6 +112,119 @@ func ExecuteCodeBlockSync(codeBlock parsers.CodeBlock, env map[string]string) te
 			InteractiveCommand:   true,
 			WriteToHistory:       true,
 		},
+	)
+
+	Program.RestoreTerminal()
+
+	if err != nil {
+		return FailedCommandMessage{
+			StdOut: output.StdOut,
+			StdErr: output.StdErr,
+			Error:  err,
+		}
+	}
+
+	logging.GlobalLogger.Infof("Command output to stdout:\n %s", output.StdOut)
+	return SuccessfulCommandMessage{
+		StdOut: output.StdOut,
+		StdErr: output.StdErr,
+	}
+}
+
+func ExecuteExportsBlockAsync(codeBlock parsers.CodeBlock, env map[string]string) tea.Cmd {
+	return func() tea.Msg {
+		logging.GlobalLogger.Infof(
+			"Executing command asynchronously:\n %s", codeBlock.Content)
+
+		// Retain exports but don't execute anything else
+		lines := strings.Split(codeBlock.Content, "\n")
+		var result []string
+		for _, line := range lines {
+			if strings.HasPrefix(line, "export") {
+				fmt.Printf("%s", line)
+				// Lowercase the matching line and add it to the result array
+				result = append(result, strings.ToLower(line))
+			}
+		}
+		exportCommands := strings.Join(result, "\n")
+
+		output, err := shells.ExecuteBashCommand(exportCommands, shells.BashCommandConfiguration{
+			EnvironmentVariables: env,
+			InheritEnvironment:   true,
+			InteractiveCommand:   false,
+			WriteToHistory:       true,
+		})
+		if err != nil {
+			logging.GlobalLogger.Errorf("Error executing command:\n %s", err.Error())
+			return FailedCommandMessage{
+				StdOut:          output.StdOut,
+				StdErr:          output.StdErr,
+				Error:           err,
+				SimilarityScore: 0,
+			}
+		}
+
+		// Check command output against the expected output.
+		actualOutput := output.StdOut
+		expectedOutput := codeBlock.ExpectedOutput.Content
+		expectedSimilarity := codeBlock.ExpectedOutput.ExpectedSimilarity
+		expectedRegex := codeBlock.ExpectedOutput.ExpectedRegex
+		expectedOutputLanguage := codeBlock.ExpectedOutput.Language
+
+		score, outputComparisonError := CompareCommandOutputs(
+			actualOutput,
+			expectedOutput,
+			expectedSimilarity,
+			expectedRegex,
+			expectedOutputLanguage,
+		)
+
+		if outputComparisonError != nil {
+			logging.GlobalLogger.Errorf(
+				"Error comparing command outputs: %s",
+				outputComparisonError.Error(),
+			)
+
+			return FailedCommandMessage{
+				StdOut:          output.StdOut,
+				StdErr:          output.StdErr,
+				Error:           outputComparisonError,
+				SimilarityScore: score,
+			}
+
+		}
+
+		logging.GlobalLogger.Infof("Command output to stdout:\n %s", output.StdOut)
+		return SuccessfulCommandMessage{
+			StdOut:          output.StdOut,
+			StdErr:          output.StdErr,
+			SimilarityScore: score,
+		}
+	}
+}
+
+func ExecuteExportsBlockSync(codeBlock parsers.CodeBlock, env map[string]string) tea.Msg {
+	logging.GlobalLogger.Info("Executing command synchronously: ", codeBlock.Content)
+	Program.ReleaseTerminal()
+
+	// Retain exports but don't execute anything else
+	lines := strings.Split(codeBlock.Content, "\n")
+	var result []string
+	for _, line := range lines {
+		if strings.HasPrefix(line, "export") {
+			fmt.Printf("%s", line)
+			// Lowercase the matching line and add it to the result array
+			result = append(result, strings.ToLower(line))
+		}
+	}
+	exportCommands := strings.Join(result, "\n")
+
+	output, err := shells.ExecuteBashCommand(exportCommands, shells.BashCommandConfiguration{
+		EnvironmentVariables: env,
+		InheritEnvironment:   true,
+		InteractiveCommand:   true,
+		WriteToHistory:       true,
+	},
 	)
 
 	Program.RestoreTerminal()
