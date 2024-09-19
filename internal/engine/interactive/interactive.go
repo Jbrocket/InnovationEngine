@@ -251,11 +251,11 @@ func handleUserInput(
 			commands = append(commands, tea.Sequence(
 				common.UpdateAzureStatus(model.azureStatus, model.environment),
 				func() tea.Msg {
-					return common.ExecuteCodeBlockSync(codeBlock, lib.CopyMap(model.env))
+					return common.ExecuteExportsBlockSync(codeBlock, lib.CopyMap(model.env))
 				}))
 
 		} else {
-			commands = append(commands, common.ExecuteCodeBlockAsync(codeBlock, lib.CopyMap(model.env)))
+			commands = append(commands, common.ExecuteExportsBlockAsync(codeBlock, lib.CopyMap(model.env)))
 		}
 	case key.Matches(message, model.commands.previous):
 		if model.executingCommand {

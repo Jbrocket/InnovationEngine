@@ -2,6 +2,7 @@ package common
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/Azure/InnovationEngine/internal/engine/environments"
 	"github.com/Azure/InnovationEngine/internal/logging"
@@ -135,7 +136,19 @@ func ExecuteExportsBlockAsync(codeBlock parsers.CodeBlock, env map[string]string
 		logging.GlobalLogger.Infof(
 			"Executing command asynchronously:\n %s", codeBlock.Content)
 
-		output, err := shells.ExecuteBashCommand(codeBlock.Content, shells.BashCommandConfiguration{
+		// Retain exports but don't execute anything else
+		lines := strings.Split(codeBlock.Content, "\n")
+		var result []string
+		for _, line := range lines {
+			if strings.HasPrefix(line, "export") {
+				fmt.Printf("%s", line)
+				// Lowercase the matching line and add it to the result array
+				result = append(result, strings.ToLower(line))
+			}
+		}
+		exportCommands := strings.Join(result, "\n")
+
+		output, err := shells.ExecuteBashCommand(exportCommands, shells.BashCommandConfiguration{
 			EnvironmentVariables: env,
 			InheritEnvironment:   true,
 			InteractiveCommand:   false,
@@ -194,14 +207,24 @@ func ExecuteExportsBlockSync(codeBlock parsers.CodeBlock, env map[string]string)
 	logging.GlobalLogger.Info("Executing command synchronously: ", codeBlock.Content)
 	Program.ReleaseTerminal()
 
-	output, err := shells.ExecuteBashCommand(
-		codeBlock.Content,
-		shells.BashCommandConfiguration{
-			EnvironmentVariables: env,
-			InheritEnvironment:   true,
-			InteractiveCommand:   true,
-			WriteToHistory:       true,
-		},
+	// Retain exports but don't execute anything else
+	lines := strings.Split(codeBlock.Content, "\n")
+	var result []string
+	for _, line := range lines {
+		if strings.HasPrefix(line, "export") {
+			fmt.Printf("%s", line)
+			// Lowercase the matching line and add it to the result array
+			result = append(result, strings.ToLower(line))
+		}
+	}
+	exportCommands := strings.Join(result, "\n")
+
+	output, err := shells.ExecuteBashCommand(exportCommands, shells.BashCommandConfiguration{
+		EnvironmentVariables: env,
+		InheritEnvironment:   true,
+		InteractiveCommand:   true,
+		WriteToHistory:       true,
+	},
 	)
 
 	Program.RestoreTerminal()
