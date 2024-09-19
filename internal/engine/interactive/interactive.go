@@ -31,6 +31,7 @@ type InteractiveModeCommands struct {
 	pause       key.Binding
 	previous    key.Binding
 	quit        key.Binding
+	skip        key.Binding
 }
 
 type interactiveModeComponents struct {
@@ -202,7 +203,60 @@ func handleUserInput(
 				lib.CopyMap(model.env),
 			))
 		}
+	case key.Matches(message, model.commands.skip):
+		if model.executingCommand {
+			logging.GlobalLogger.Info("Command is already executing, ignoring execute command")
+			break
+		}
 
+		// Prevent the user from executing a command if the previous command has
+		// not been executed successfully or executed at all.
+		previousCodeBlock := model.currentCodeBlock - 1
+		if previousCodeBlock >= 0 {
+			previousCodeBlockState := model.codeBlockState[previousCodeBlock]
+			if !previousCodeBlockState.Success {
+				logging.GlobalLogger.Info(
+					"Previous command has not been executed successfully, ignoring execute command",
+				)
+				break
+			}
+		}
+
+		// Prevent the user from executing a command if the current command has
+		// already been executed successfully.
+		codeBlockState := model.codeBlockState[model.currentCodeBlock]
+		if codeBlockState.Success {
+			logging.GlobalLogger.Info(
+				"Command has already been executed successfully, ignoring execute command",
+			)
+			break
+		}
+
+		codeBlock := codeBlockState.CodeBlock
+
+		model.executingCommand = true
+
+		// If we're on the last step and the command is an SSH command, we need
+		// to report the status before executing the command. This is needed for
+		// one click deployments and does not affect the normal execution flow.
+		if model.currentCodeBlock == len(model.codeBlockState)-1 &&
+			patterns.SshCommand.MatchString(codeBlock.Content) {
+			model.azureStatus.Status = "Succeeded"
+			environments.AttachResourceURIsToAzureStatus(
+				&model.azureStatus,
+				model.resourceGroupName,
+				model.environment,
+			)
+
+			commands = append(commands, tea.Sequence(
+				common.UpdateAzureStatus(model.azureStatus, model.environment),
+				func() tea.Msg {
+					return common.ExecuteCodeBlockSync(codeBlock, lib.CopyMap(model.env))
+				}))
+
+		} else {
+			commands = append(commands, common.ExecuteCodeBlockAsync(codeBlock, lib.CopyMap(model.env)))
+		}
 	case key.Matches(message, model.commands.previous):
 		if model.executingCommand {
 			logging.GlobalLogger.Info("Command is already executing, ignoring execute command")
@@ -501,6 +555,7 @@ func (model InteractiveModeModel) helpView() string {
 			model.commands.executeMany,
 			model.commands.previous,
 			model.commands.next,
+			model.commands.skip,
 		},
 		// Scenario related bindings
 		{
@@ -647,6 +702,10 @@ func NewInteractiveModeModel(
 			next: key.NewBinding(
 				key.WithKeys("right"),
 				key.WithHelp("→", "Go to the next command."),
+			),
+			skip: key.NewBinding(
+				key.WithKeys("s"),
+				key.WithHelp("s", "Skip the current command. But retain export declarations."),
 			),
 			// Only enabled when in the azure environment.
 			executeAll:  executeAllKeybind,
