@@ -5,12 +5,12 @@ RELEASE="$1"
 
 # If no release is specified, download the latest release
 if [ "$RELEASE" == "" ]; then
-	RELEASE="latest"
+	RELEASE="0.2.0"
 fi
 
 # Download the binary
 echo "Installing IE from the $RELEASE release..."
-wget -q -O ie https://github.com/Azure/InnovationEngine/releases/download/"$RELEASE"/ie >/dev/null
+wget -q -O ie https://github.com/Jbrocket/InnovationEngine/releases/download/0.2.0/ie >/dev/null
 
 # Setup permissions & move to the local bin
 chmod +x ie >/dev/null
