@@ -142,8 +142,7 @@ func ExecuteExportsBlockAsync(codeBlock parsers.CodeBlock, env map[string]string
 		for _, line := range lines {
 			if strings.HasPrefix(line, "export") {
 				fmt.Printf("%s", line)
-				// Lowercase the matching line and add it to the result array
-				result = append(result, strings.ToLower(line))
+				result = append(result, line)
 			}
 		}
 		exportCommands := strings.Join(result, "\n")
@@ -213,8 +212,7 @@ func ExecuteExportsBlockSync(codeBlock parsers.CodeBlock, env map[string]string)
 	for _, line := range lines {
 		if strings.HasPrefix(line, "export") {
 			fmt.Printf("%s", line)
-			// Lowercase the matching line and add it to the result array
-			result = append(result, strings.ToLower(line))
+			result = append(result, line)
 		}
 	}
 	exportCommands := strings.Join(result, "\n")
